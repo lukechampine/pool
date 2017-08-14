@@ -13,13 +13,20 @@ type MemPool struct {
 	cond *sync.Cond
 }
 
-// uintptrSliceHeader represents the memory layout of a slice. It is identical
-// to reflect.SliceHeader, except that Len and Cap are uintptrs instead of
-// ints. This allows atomic operations on those fields. Unfortunately, it also
-// means that this package may break on architectures where sizeof(int) !=
-// sizeof(uintptr).
-type uintptrSliceHeader struct {
-	Data, Len, Cap uintptr
+// New creates a new MemPool that contains n buffers of the specified size.
+// Both arguments must be non-zero.
+func New(n, bufSize int) *MemPool {
+	if n <= 0 || bufSize <= 0 {
+		panic("cannot create empty MemPool")
+	}
+	bufs := make([][]byte, n)
+	for i := range bufs {
+		bufs[i] = make([]byte, bufSize)
+	}
+	return &MemPool{
+		bufs: bufs,
+		cond: sync.NewCond(noopLocker{}),
+	}
 }
 
 // Get returns one of the buffers in the pool. If no buffers are available,
@@ -39,9 +46,7 @@ func (p *MemPool) Get() []byte {
 			}
 		}
 		// no bufs are available, so block until woken up by a call to Put
-		p.cond.L.Lock()
 		p.cond.Wait()
-		p.cond.L.Unlock()
 	}
 }
 
@@ -76,18 +81,18 @@ func (p *MemPool) Put(b []byte) {
 	panic("Put []byte did not originate in pool")
 }
 
-// New creates a new MemPool that contains n buffers of the specified size.
-// Both arguments must be non-zero.
-func New(n, bufSize int) *MemPool {
-	if n <= 0 || bufSize <= 0 {
-		panic("cannot create empty MemPool")
-	}
-	bufs := make([][]byte, n)
-	for i := range bufs {
-		bufs[i] = make([]byte, bufSize)
-	}
-	return &MemPool{
-		bufs: bufs,
-		cond: sync.NewCond(new(sync.Mutex)),
-	}
+// noopLocker implements the sync.Locker interface with no-ops. It exists
+// solely to speed up the call to p.cond.Wait.
+type noopLocker struct{}
+
+func (noopLocker) Lock()   {}
+func (noopLocker) Unlock() {}
+
+// uintptrSliceHeader represents the memory layout of a slice. It is identical
+// to reflect.SliceHeader, except that Len and Cap are uintptrs instead of
+// ints. This allows atomic operations on those fields. Unfortunately, it also
+// means that this package may break on architectures where sizeof(int) !=
+// sizeof(uintptr).
+type uintptrSliceHeader struct {
+	Data, Len, Cap uintptr
 }
