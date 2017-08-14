@@ -23,7 +23,7 @@ type uintptrSliceHeader struct {
 }
 
 // Get returns one of the buffers in the pool. If no buffers are available,
-// Get blocks. Buffers are not zeroed before being returned.
+// Get blocks. Buffers are cleared before being returned.
 func (p *MemPool) Get() []byte {
 	// search for a buf with len > 0 (i.e. available)
 	for {
@@ -31,6 +31,10 @@ func (p *MemPool) Get() []byte {
 			iHdr := (*uintptrSliceHeader)(unsafe.Pointer(&p.bufs[i]))
 			// try to mark the buffer as unavailable
 			if atomic.CompareAndSwapUintptr(&iHdr.Len, iHdr.Cap, 0) {
+				// clear old contents before returning
+				for j := range s {
+					s[j] = 0
+				}
 				return s
 			}
 		}
