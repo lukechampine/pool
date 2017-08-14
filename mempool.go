@@ -6,12 +6,16 @@ import (
 	"unsafe"
 )
 
+// A MemPool is a pool of fixed-size []byte buffers. MemPools are safe for
+// concurrent use.
 type MemPool struct {
 	bufs [][]byte
 	mu   sync.Mutex
 	cond *sync.Cond
 }
 
+// Get returns one of the buffers in the pool. If no buffers are available,
+// Get blocks. Buffers are not zeroed before being returned.
 func (p *MemPool) Get() []byte {
 	// search for a buf with len > 0 (i.e. available)
 	p.mu.Lock()
@@ -29,6 +33,21 @@ func (p *MemPool) Get() []byte {
 	}
 }
 
+// Put returns a buffer to the pool. b must be a buffer that was returned by
+// Get; otherwise, Put panics. However, the caller may modify the contents of
+// the buffer or change its length or capacity before returning it. All that
+// matters is that b point to the same memory location as the original slice
+// returned by Get. As an example, this is legal:
+//
+//    b := pool.Get()
+//    b = append(b[:0], 1) // reuses existing capacity
+//    pool.Put(b)
+//
+// But this is not:
+//
+//    b := pool.Get()
+//    b = append(b, 1) // causes b to be reallocated
+//    pool.Put(b)
 func (p *MemPool) Put(b []byte) {
 	// look for the buffer whose pointer matches b
 	bHdr := (*reflect.SliceHeader)(unsafe.Pointer(&b))
@@ -47,8 +66,9 @@ func (p *MemPool) Put(b []byte) {
 	panic("Put []byte did not originate in pool")
 }
 
+// New creates a new MemPool. Both arguments must be non-zero.
 func New(bufs, bufSize int) *MemPool {
-	if bufs == 0 || bufSize == 0 {
+	if bufs <= 0 || bufSize <= 0 {
 		panic("cannot create empty MemPool")
 	}
 	s := &MemPool{bufs: make([][]byte, bufs)}

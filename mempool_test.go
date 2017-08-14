@@ -38,8 +38,8 @@ func TestPool(t *testing.T) {
 	}
 
 	// Modify and return the buffer we got
-	got[0] = 1
-	s.Put(got[:1])
+	got = append(got[:0], 1)
+	s.Put(got)
 
 	// 11th Get should now return
 	select {
