@@ -32,7 +32,7 @@ func New(n, bufSize int) *MemPool {
 // Get returns one of the buffers in the pool. If no buffers are available,
 // Get blocks. Buffers are cleared before being returned.
 func (p *MemPool) Get() []byte {
-	// search for a buf with len > 0 (i.e. available)
+	// search for a buffer with len > 0 (i.e. available)
 	for {
 		for i, s := range p.bufs {
 			iHdr := (*uintptrSliceHeader)(unsafe.Pointer(&p.bufs[i]))
@@ -45,7 +45,7 @@ func (p *MemPool) Get() []byte {
 				return s
 			}
 		}
-		// no bufs are available, so block until woken up by a call to Put
+		// no buffers are available, so block until woken up by a call to Put
 		p.cond.Wait()
 	}
 }
@@ -71,7 +71,7 @@ func (p *MemPool) Put(b []byte) {
 	for i := range p.bufs {
 		iHdr := (*uintptrSliceHeader)(unsafe.Pointer(&p.bufs[i]))
 		if iHdr.Data == bHdr.Data {
-			// mark the buf as available
+			// mark the buffer as available
 			atomic.StoreUintptr(&iHdr.Len, iHdr.Cap)
 			// if there are blocked Get calls, wake one up
 			p.cond.Signal()
