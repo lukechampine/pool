@@ -29,6 +29,6 @@ See the [GoDoc](https://godoc.org/github.com/lukechampine/mempool) for full docu
 ## Benchmarks ##
 
 ```
-BenchmarkPool-4             	30000000	        39 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPoolContention-4   	20000000	       122 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPool-4             	100000000	        20.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPoolContention-4   	50000000	        26.0 ns/op	       0 B/op	       0 allocs/op
 ```

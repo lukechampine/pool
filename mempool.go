@@ -1,8 +1,8 @@
 package mempool
 
 import (
-	"reflect"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -10,26 +10,34 @@ import (
 // concurrent use.
 type MemPool struct {
 	bufs [][]byte
-	mu   sync.Mutex
 	cond *sync.Cond
+}
+
+// uintptrSliceHeader represents the memory layout of a slice. It is identical
+// to reflect.SliceHeader, except that Len and Cap are uintptrs instead of
+// ints. This allows atomic operations on those fields. Unfortunately, it also
+// means that this package may break on architectures where sizeof(int) !=
+// sizeof(uintptr).
+type uintptrSliceHeader struct {
+	Data, Len, Cap uintptr
 }
 
 // Get returns one of the buffers in the pool. If no buffers are available,
 // Get blocks. Buffers are not zeroed before being returned.
 func (p *MemPool) Get() []byte {
 	// search for a buf with len > 0 (i.e. available)
-	p.mu.Lock()
 	for {
 		for i, s := range p.bufs {
-			if len(s) != 0 {
-				// mark the buf as unavailable
-				(*reflect.SliceHeader)(unsafe.Pointer(&p.bufs[i])).Len = 0
-				p.mu.Unlock()
+			iHdr := (*uintptrSliceHeader)(unsafe.Pointer(&p.bufs[i]))
+			// try to mark the buffer as unavailable
+			if atomic.CompareAndSwapUintptr(&iHdr.Len, iHdr.Cap, 0) {
 				return s
 			}
 		}
 		// no bufs are available, so block until woken up by a call to Put
+		p.cond.L.Lock()
 		p.cond.Wait()
+		p.cond.L.Unlock()
 	}
 }
 
@@ -50,14 +58,12 @@ func (p *MemPool) Get() []byte {
 //    pool.Put(b)
 func (p *MemPool) Put(b []byte) {
 	// look for the buffer whose pointer matches b
-	bHdr := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	bHdr := (*uintptrSliceHeader)(unsafe.Pointer(&b))
 	for i := range p.bufs {
-		iHdr := (*reflect.SliceHeader)(unsafe.Pointer(&p.bufs[i]))
+		iHdr := (*uintptrSliceHeader)(unsafe.Pointer(&p.bufs[i]))
 		if iHdr.Data == bHdr.Data {
 			// mark the buf as available
-			p.mu.Lock()
-			iHdr.Len = iHdr.Cap
-			p.mu.Unlock()
+			atomic.StoreUintptr(&iHdr.Len, iHdr.Cap)
 			// if there are blocked Get calls, wake one up
 			p.cond.Signal()
 			return
@@ -66,15 +72,18 @@ func (p *MemPool) Put(b []byte) {
 	panic("Put []byte did not originate in pool")
 }
 
-// New creates a new MemPool. Both arguments must be non-zero.
-func New(bufs, bufSize int) *MemPool {
-	if bufs <= 0 || bufSize <= 0 {
+// New creates a new MemPool that contains n buffers of the specified size.
+// Both arguments must be non-zero.
+func New(n, bufSize int) *MemPool {
+	if n <= 0 || bufSize <= 0 {
 		panic("cannot create empty MemPool")
 	}
-	s := &MemPool{bufs: make([][]byte, bufs)}
-	for i := range s.bufs {
-		s.bufs[i] = make([]byte, bufSize)
+	bufs := make([][]byte, n)
+	for i := range bufs {
+		bufs[i] = make([]byte, bufSize)
 	}
-	s.cond = sync.NewCond(&s.mu)
-	return s
+	return &MemPool{
+		bufs: bufs,
+		cond: sync.NewCond(new(sync.Mutex)),
+	}
 }
