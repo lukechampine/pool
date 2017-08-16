@@ -20,8 +20,9 @@ func NewFixedPool(n, bufSize int) *FixedPool {
 		panic("cannot create empty FixedPool")
 	}
 	bufs := make([][]byte, n)
+	buf := make([]byte, n*bufSize)
 	for i := range bufs {
-		bufs[i] = make([]byte, bufSize)
+		bufs[i] = buf[i*bufSize : (i+1)*bufSize : (i+1)*bufSize]
 	}
 	return &FixedPool{
 		bufs: bufs,
