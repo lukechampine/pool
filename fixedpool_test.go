@@ -1,4 +1,4 @@
-package mempool
+package mem
 
 import (
 	"runtime"
@@ -15,19 +15,19 @@ func shouldPanic(t *testing.T, fn func()) {
 	fn()
 }
 
-func TestPool(t *testing.T) {
-	s := New(10, 1000)
+func TestFixedPool(t *testing.T) {
+	p := NewFixedPool(10, 1000)
 
 	// Get all available buffers
 	var got []byte
 	for i := 0; i < 10; i++ {
-		got = s.Get()
+		got = p.Get()
 	}
 
 	// 11th Get should block until we call Put
 	done := make(chan struct{})
 	go func() {
-		_ = s.Get()
+		_ = p.Get()
 		close(done)
 	}()
 
@@ -39,7 +39,7 @@ func TestPool(t *testing.T) {
 
 	// Modify and return the buffer we got
 	got = append(got[:0], 1)
-	s.Put(got)
+	p.Put(got)
 
 	// 11th Get should now return
 	select {
@@ -49,16 +49,16 @@ func TestPool(t *testing.T) {
 	}
 
 	// Putting a buffer not owned by the pool should cause a panic
-	shouldPanic(t, func() { s.Put(make([]byte, 1000)) })
+	shouldPanic(t, func() { p.Put(make([]byte, 1000)) })
 }
 
-func TestConcurrent(t *testing.T) {
-	s := New(10, 1000)
+func TestFixedPoolConcurrent(t *testing.T) {
+	p := NewFixedPool(10, 1000)
 
 	getAndPut := func(n int) {
 		for i := 0; i < n; i++ {
-			b := s.Get()
-			s.Put(b)
+			b := p.Get()
+			p.Put(b)
 			runtime.Gosched()
 		}
 	}
@@ -68,31 +68,31 @@ func TestConcurrent(t *testing.T) {
 	getAndPut(1000)
 }
 
-func TestEmptyPool(t *testing.T) {
+func TestFixedPoolEmpty(t *testing.T) {
 	// Empty pools should panic
-	shouldPanic(t, func() { New(0, 1) })
-	shouldPanic(t, func() { New(1, 0) })
-	shouldPanic(t, func() { New(0, 0) })
+	shouldPanic(t, func() { NewFixedPool(0, 1) })
+	shouldPanic(t, func() { NewFixedPool(1, 0) })
+	shouldPanic(t, func() { NewFixedPool(0, 0) })
 }
 
-func BenchmarkPool(b *testing.B) {
-	s := New(1000, 1000)
+func BenchmarkFixedPool(b *testing.B) {
+	p := NewFixedPool(1000, 1000)
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		b := s.Get()
-		s.Put(b)
+		b := p.Get()
+		p.Put(b)
 	}
 }
 
-func BenchmarkPoolContention(b *testing.B) {
-	s := New(1000, 1000)
+func BenchmarkFixedPoolContention(b *testing.B) {
+	p := NewFixedPool(1000, 1000)
 	for i := 0; i < 10; i++ {
 		go func() {
-			for {
-				b := s.Get()
-				s.Put(b)
+			for j := 0; j < b.N*2; j++ {
+				b := p.Get()
+				p.Put(b)
 				runtime.Gosched()
 			}
 		}()
@@ -101,7 +101,7 @@ func BenchmarkPoolContention(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		b := s.Get()
-		s.Put(b)
+		b := p.Get()
+		p.Put(b)
 	}
 }

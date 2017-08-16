@@ -1,4 +1,4 @@
-package mempool
+package mem
 
 import (
 	"sync"
@@ -6,24 +6,24 @@ import (
 	"unsafe"
 )
 
-// A MemPool is a pool of fixed-size []byte buffers. MemPools are safe for
+// A FixedPool is a pool of fixed-size []byte buffers. FixedPools are safe for
 // concurrent use.
-type MemPool struct {
+type FixedPool struct {
 	bufs [][]byte
 	cond *sync.Cond
 }
 
-// New creates a new MemPool that contains n buffers of the specified size.
-// Both arguments must be non-zero.
-func New(n, bufSize int) *MemPool {
+// NewFixedPool creates a new FixedPool that contains n buffers of the
+// specified size. Both arguments must be non-zero.
+func NewFixedPool(n, bufSize int) *FixedPool {
 	if n <= 0 || bufSize <= 0 {
-		panic("cannot create empty MemPool")
+		panic("cannot create empty FixedPool")
 	}
 	bufs := make([][]byte, n)
 	for i := range bufs {
 		bufs[i] = make([]byte, bufSize)
 	}
-	return &MemPool{
+	return &FixedPool{
 		bufs: bufs,
 		cond: sync.NewCond(noopLocker{}),
 	}
@@ -31,7 +31,7 @@ func New(n, bufSize int) *MemPool {
 
 // Get returns one of the buffers in the pool. If no buffers are available,
 // Get blocks. Buffers are cleared before being returned.
-func (p *MemPool) Get() []byte {
+func (p *FixedPool) Get() []byte {
 	// search for a buffer with len > 0 (i.e. available)
 	for {
 		for i, s := range p.bufs {
@@ -65,7 +65,10 @@ func (p *MemPool) Get() []byte {
 //    b := pool.Get()
 //    b = append(b, 1) // causes b to be reallocated
 //    pool.Put(b)
-func (p *MemPool) Put(b []byte) {
+//
+// Callers must not modify the contents of a buffer after returning it to the
+// pool with Put.
+func (p *FixedPool) Put(b []byte) {
 	// look for the buffer whose pointer matches b
 	bHdr := (*uintptrSliceHeader)(unsafe.Pointer(&b))
 	for i := range p.bufs {
