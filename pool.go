@@ -64,6 +64,11 @@ func NewIndexPool(n int) *IndexPool {
 // A BufferPool is a pool of fixed-size []byte buffers. BufferPools are safe
 // for concurrent use.
 type BufferPool struct {
+	// NoClear controls whether buffers are cleared before being returned to
+	// the pool. Enabling NoClear improves performance, but requires the
+	// caller to deal with potentially dirty buffers.
+	NoClear bool
+
 	bufs    [][]byte
 	indices *IndexPool
 }
@@ -90,15 +95,17 @@ func (p BufferPool) Get() []byte {
 //    pool.Put(b)
 //
 // Callers must not modify the contents of a buffer after returning it to the
-// pool with Put. The buffer is cleared before being returned to the pool.
+// pool with Put.
 func (p BufferPool) Put(b []byte) {
 	// look for the buffer whose pointer matches b
 	for i := range p.bufs {
 		// NOTE: this must be a single expression; otherwise the GC can
 		// relocate the Data pointers
 		if (*reflect.SliceHeader)(unsafe.Pointer(&p.bufs[i])).Data == (*reflect.SliceHeader)(unsafe.Pointer(&b)).Data {
-			for j := range p.bufs[i] {
-				p.bufs[i][j] = 0
+			if !p.NoClear {
+				for j := range p.bufs[i] {
+					p.bufs[i][j] = 0
+				}
 			}
 			p.indices.Put(i)
 			return

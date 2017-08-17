@@ -165,6 +165,7 @@ func TestBufferPoolEmpty(t *testing.T) {
 
 func BenchmarkBufferPool(b *testing.B) {
 	p := NewBufferPool(1000, 1000)
+	p.NoClear = true
 	b.ReportAllocs()
 	b.ResetTimer()
 
@@ -175,6 +176,7 @@ func BenchmarkBufferPool(b *testing.B) {
 
 func BenchmarkBufferPoolContention(b *testing.B) {
 	p := NewBufferPool(1000, 1000)
+	p.NoClear = true
 	for i := 0; i < 10; i++ {
 		go func() {
 			for j := 0; j < b.N*2; j++ {
