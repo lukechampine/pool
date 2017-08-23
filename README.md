@@ -1,13 +1,14 @@
-mem
----
+pool
+----
 
-[![GoDoc](https://godoc.org/github.com/lukechampine/mem?status.svg)](https://godoc.org/github.com/lukechampine/mem)
-[![Go Report Card](http://goreportcard.com/badge/github.com/lukechampine/mem)](https://goreportcard.com/report/github.com/lukechampine/mem)
+[![GoDoc](https://godoc.org/github.com/lukechampine/pool?status.svg)](https://godoc.org/github.com/lukechampine/pool)
+[![Go Report Card](http://goreportcard.com/badge/github.com/lukechampine/pool)](https://goreportcard.com/report/github.com/lukechampine/pool)
 
 ```
-go get github.com/lukechampine/mem
+go get github.com/lukechampine/pool
 ```
 
-`mem` is a collection of memory-management utilities.
+`pool` is a collection of pools, including a standard memory pool and a more
+generic "index" pool for storing arbitrary types.
 
-See the [GoDoc](https://godoc.org/github.com/lukechampine/mem) for full documentation.
+See the [GoDoc](https://godoc.org/github.com/lukechampine/pool) for full documentation.
